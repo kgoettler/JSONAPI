@@ -400,40 +400,42 @@ extension ToManyRelationship: Codable {
         } else {
             links = try container.decode(LinksType.self, forKey: .links)
         }
-
-        var identifiers: UnkeyedDecodingContainer
-        do {
-            identifiers = try container.nestedUnkeyedContainer(forKey: .data)
-        } catch let error as DecodingError {
-            guard case let .typeMismatch(type, context) = error,
-                type is _ArrayType.Type else {
-                    throw error
-            }
-            throw JSONAPICodingError.quantityMismatch(expected: .many,
-                                                      path: context.codingPath)
-        }
-
+        
         var newIds = [ID]()
-        while !identifiers.isAtEnd {
-            let identifier = try identifiers.nestedContainer(keyedBy: ResourceIdentifierCodingKeys.self)
-
-            let type = try identifier.decode(String.self, forKey: .entityType)
-
-            guard type == Relatable.jsonType else {
-                throw JSONAPICodingError.typeMismatch(expected: Relatable.jsonType, found: type, path: decoder.codingPath)
+        if container.allKeys.count > 0 && container.allKeys.contains(.data) {
+            var identifiers: UnkeyedDecodingContainer
+            do {
+                identifiers = try container.nestedUnkeyedContainer(forKey: .data)
+            } catch let error as DecodingError {
+                guard case let .typeMismatch(type, context) = error,
+                    type is _ArrayType.Type else {
+                        throw error
+                }
+                throw JSONAPICodingError.quantityMismatch(expected: .many,
+                                                          path: context.codingPath)
             }
 
-            let id = try identifier.decode(Relatable.ID.RawType.self, forKey: .id)
+            while !identifiers.isAtEnd {
+                let identifier = try identifiers.nestedContainer(keyedBy: ResourceIdentifierCodingKeys.self)
 
-            let idMeta: IdMetaType
-            let maybeNoIdMeta: IdMetaType? = NoIdMetadata() as? IdMetaType
-            if let noIdMeta = maybeNoIdMeta {
-                idMeta = noIdMeta
-            } else {
-                idMeta = try identifier.decode(IdMetaType.self, forKey: .metadata)
+                let type = try identifier.decode(String.self, forKey: .entityType)
+
+                guard type == Relatable.jsonType else {
+                    throw JSONAPICodingError.typeMismatch(expected: Relatable.jsonType, found: type, path: decoder.codingPath)
+                }
+
+                let id = try identifier.decode(Relatable.ID.RawType.self, forKey: .id)
+
+                let idMeta: IdMetaType
+                let maybeNoIdMeta: IdMetaType? = NoIdMetadata() as? IdMetaType
+                if let noIdMeta = maybeNoIdMeta {
+                    idMeta = noIdMeta
+                } else {
+                    idMeta = try identifier.decode(IdMetaType.self, forKey: .metadata)
+                }
+
+                newIds.append(.init(id: Relatable.ID(rawValue: id), meta: idMeta) )
             }
-
-            newIds.append(.init(id: Relatable.ID(rawValue: id), meta: idMeta) )
         }
         idsWithMeta = newIds
     }
